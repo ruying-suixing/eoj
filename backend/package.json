@@ -1,0 +1,22 @@
+{
+  "name": "oj-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 execute oj-database --file=./migrations/0001_initial.sql",
+    "db:migrate:local": "wrangler d1 execute oj-database --local --file=./migrations/0001_initial.sql",
+    "db:migrate:0003:local": "wrangler d1 execute oj-database --local --file=./migrations/0003_add_password_hash.sql"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "hono": "^4.12.23"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260530.1",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^25.9.2",
+    "wrangler": "^4.95.0"
+  }
+}

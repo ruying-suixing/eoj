@@ -1,0 +1,20 @@
+site:
+  name: "OJ System"
+  short_name: "OJ"
+  description: "Online Judge"
+  icon: "default"
+  favicon: "/favicon.svg"
+
+footer:
+  enabled: true
+  text: ""
+  links: []
+
+login:
+  hero_title: ""
+  hero_subtitle: ""
+  show_github: true
+  show_cpoauth: true
+
+home:
+  title: ""
