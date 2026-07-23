@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuthStore } from '../store/auth';
 import { Search, Tag, Clock, MemoryStick, Filter, CheckCircle, AlertCircle } from 'lucide-react';
-import { DIFFICULTY_COLORS } from '../constants';
+import { DIFFICULTY_COLORS, DIFFICULTIES } from '../constants';
 import RatingBadge from '../components/RatingBadge';
 import { t } from '../i18n';
 import { useToastStore } from '../store/toast';
@@ -12,6 +12,7 @@ import './ProblemList.css';
 
 export default function ProblemList() {
   const { user } = useAuthStore();
+  const addToast = useToastStore((s) => s.addToast);
   const [problems, setProblems] = useState<any[]>([]);
   const [pagination, setPagination] = useState<any>({});
   const [search, setSearch] = useState('');
@@ -19,6 +20,8 @@ export default function ProblemList() {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
   const [selectedTag, setSelectedTag] = useState('');
   const [selectedDifficulty, setSelectedDifficulty] = useState('');
+  const [passRateFilter, setPassRateFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -33,7 +36,7 @@ export default function ProblemList() {
       fetchUserProgress();
     }
     fetchTags();
-  }, [page, debouncedSearch, selectedTag, selectedDifficulty, user]);
+  }, [page, debouncedSearch, selectedTag, selectedDifficulty, passRateFilter, statusFilter, user]);
 
   const fetchTags = async () => {
     try {
@@ -58,7 +61,7 @@ export default function ProblemList() {
       setProblems(data.problems);
       setPagination(data.pagination);
     } catch (e: any) {
-      useToastStore().addToast('error', t('common.loadError'));
+      addToast('error', t('common.loadError'));
       console.error('Failed to fetch problems:', e);
       setError(e.message || t('common.error'));
     } finally {
@@ -80,7 +83,7 @@ export default function ProblemList() {
       );
       setAttemptedProblems(attemptedIds);
     } catch (e) {
-      useToastStore().addToast('error', t('common.error'));
+      addToast('error', t('common.error'));
       console.error('Failed to fetch user progress:', e);
     }
   };
@@ -113,6 +116,8 @@ export default function ProblemList() {
     setDebouncedSearch('');
     setSelectedTag('');
     setSelectedDifficulty('');
+    setPassRateFilter('');
+    setStatusFilter('');
     setPage(1);
   };
 
@@ -143,9 +148,9 @@ export default function ProblemList() {
             onChange={(e) => { setSelectedDifficulty(e.target.value); setPage(1); }}
           >
             <option value="">{t('problemList.allDifficulty')}</option>
-            <option value="Easy">{t('problemList.easy')}</option>
-            <option value="Medium">{t('problemList.medium')}</option>
-            <option value="Hard">{t('problemList.hard')}</option>
+            {DIFFICULTIES.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
           </select>
         </div>
 
@@ -165,9 +170,32 @@ export default function ProblemList() {
             )}
           </div>
         )}
+
+        {user && (
+          <div className="status-filter">
+            <Filter size={14} />
+            <span className="filter-label">状态:</span>
+            <select className="filter-select" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
+              <option value="">全部</option>
+              <option value="accepted">已通过</option>
+              <option value="attempted">已尝试</option>
+            </select>
+          </div>
+        )}
+
+        <div className="passrate-filter">
+          <Filter size={14} />
+          <span className="filter-label">通过率:</span>
+          <select className="filter-select" value={passRateFilter} onChange={(e) => { setPassRateFilter(e.target.value); setPage(1); }}>
+            <option value="">全部</option>
+            <option value="high">高 (&gt;60%)</option>
+            <option value="medium">中 (30-60%)</option>
+            <option value="low">低 (&lt;30%)</option>
+          </select>
+        </div>
       </div>
 
-      {(selectedTag || selectedDifficulty || debouncedSearch) && (
+      {(selectedTag || selectedDifficulty || debouncedSearch || passRateFilter || statusFilter) && (
         <button className="clear-filters-btn" onClick={clearFilters}>
           {t('problemList.clearFilters')}
         </button>
@@ -203,11 +231,16 @@ export default function ProblemList() {
           {problems.map((problem, index) => {
             const status = getProblemStatus(problem.id);
             const displayId = (pagination.page - 1) * pagination.pageSize + index + 1;
+            const rateLevel = problem.pass_rate != null
+              ? (problem.pass_rate >= 0.6 ? 'high' : problem.pass_rate >= 0.3 ? 'medium' : 'low')
+              : '';
+            const ratePct = problem.pass_rate != null ? Math.round(problem.pass_rate * 100) : null;
             return (
               <Link
                 key={problem.id}
                 to={`/problems/${problem.slug}`}
                 className={`problem-row ${status}`}
+                data-difficulty={problem.difficulty || ''}
               >
                 <span className="col-status">
                   {status === 'accepted' && <CheckCircle size={16} className="status-icon accepted" />}
@@ -219,7 +252,7 @@ export default function ProblemList() {
                   {problem.rating && problem.rating >= 800 ? (
                     <RatingBadge rating={problem.rating} size="sm" />
                   ) : (
-                    <span style={{ color: DIFFICULTY_COLORS[problem.difficulty] }}>
+                    <span style={{ color: DIFFICULTY_COLORS[problem.difficulty] || 'var(--text-secondary)' }}>
                       {problem.difficulty}
                     </span>
                   )}
@@ -236,7 +269,21 @@ export default function ProblemList() {
                   })()}
                 </span>
                 <span className="col-submissions">{problem.submission_count || 0}</span>
-                <span className={`col-rate ${problem.pass_rate != null ? (problem.pass_rate >= 0.6 ? 'high' : problem.pass_rate >= 0.3 ? 'medium' : 'low') : ''}`}>{problem.pass_rate != null ? `${Math.round(problem.pass_rate * 100)}%` : '-'}</span>
+                <span className="col-rate">
+                  {ratePct !== null ? (
+                    <>
+                      <span className="pass-rate-bar">
+                        <span
+                          className={`pass-rate-fill ${rateLevel}`}
+                          style={{ width: `${ratePct}%` }}
+                        />
+                      </span>
+                      <span className={`pass-rate-text ${rateLevel}`}>{ratePct}%</span>
+                    </>
+                  ) : (
+                    <span className="pass-rate-text">-</span>
+                  )}
+                </span>
                 <span className="col-limit">
                   <span className="limit-item">
                     <Clock size={12} /> {problem.time_limit}ms

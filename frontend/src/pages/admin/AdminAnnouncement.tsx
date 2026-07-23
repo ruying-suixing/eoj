@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { api } from '../../api/client';
 import { useToastStore } from '../../store/toast';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
@@ -8,6 +9,7 @@ import '../Admin.css';
 
 export default function AdminAnnouncement() {
   useDocumentTitle(t('admin.announcementManagement'));
+  const addToast = useToastStore((s) => s.addToast);
   const [announcementContent, setAnnouncementContent] = useState('');
   const [announcementSaving, setAnnouncementSaving] = useState(false);
   const [announcementLoaded, setAnnouncementLoaded] = useState(false);
@@ -32,9 +34,9 @@ export default function AdminAnnouncement() {
     setAnnouncementSaving(true);
     try {
       await api.updateSettings({ announcement: announcementContent });
-      useToastStore().addToast('success', t('admin.announcementSaved'));
+      addToast('success', t('admin.announcementSaved'));
     } catch (e: any) {
-      useToastStore().addToast('error', e.message || t('common.error'));
+      addToast('error', e.message || t('common.error'));
     } finally {
       setAnnouncementSaving(false);
     }
@@ -61,7 +63,7 @@ export default function AdminAnnouncement() {
           <label>{t('admin.announcementPreview')}</label>
           <div
             className="announcement-preview"
-            dangerouslySetInnerHTML={{ __html: announcementContent }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(announcementContent) }}
           />
         </div>
       )}

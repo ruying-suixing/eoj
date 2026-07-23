@@ -6,12 +6,13 @@ import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { DIFFICULTY_COLORS } from '../../constants';
 import { t } from '../../i18n';
 import {
-  Plus, Save, Trash2, X, ChevronUp, ChevronDown,
+  Plus, Save, Trash2, X, ChevronUp, ChevronDown, Upload,
 } from 'lucide-react';
 import '../Admin.css';
 
 export default function AdminTestcases() {
   useDocumentTitle(t('admin.addTestcases'));
+  const addToast = useToastStore((s) => s.addToast);
   const [searchParams] = useSearchParams();
   const [saving, setSaving] = useState(false);
 
@@ -57,9 +58,37 @@ export default function AdminTestcases() {
     setTestcases([...testcases, { input: '', expected_output: '', is_sample: false, score: 10 }]);
   };
 
+  const handleBatchUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        const batch = Array.isArray(data) ? data : [data];
+        const parsed = batch.map((item: any) => ({
+          input: item.input || '',
+          expected_output: item.expected_output || item.output || '',
+          is_sample: item.is_sample || false,
+          score: item.score || 10,
+        }));
+        if (parsed.length === 0) {
+          addToast('error', '文件中没有有效的测试数据');
+          return;
+        }
+        setTestcases(parsed);
+        addToast('success', `已导入 ${parsed.length} 个测试用例`);
+      } catch {
+        addToast('error', 'JSON 格式错误');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const handleSaveTestcases = async () => {
     if (!selectedTestcaseProblem) {
-      useToastStore().addToast('error', t('admin.selectProblemFirst'));
+      addToast('error', t('admin.selectProblemFirst'));
       return;
     }
     const isSpj = selectedProblemJudgeType === 'spj';
@@ -70,18 +99,18 @@ export default function AdminTestcases() {
       return tc.input && tc.expected_output;
     });
     if (validTestcases.length === 0) {
-      useToastStore().addToast('error', t('admin.atLeastOneTestcase'));
+      addToast('error', t('admin.atLeastOneTestcase'));
       return;
     }
     setSaving(true);
     try {
       await api.addTestcases(selectedTestcaseProblem.id, validTestcases);
-      useToastStore().addToast('success', t('admin.testcaseAdded'));
+      addToast('success', t('admin.testcaseAdded'));
       setTestcases([{ input: '', expected_output: '', is_sample: false, score: 10 }]);
       const data = await api.getProblemTestcases(selectedTestcaseProblem.id);
       setExistingTestcases(data.testcases);
     } catch (e: any) {
-      useToastStore().addToast('error', e.message || t('common.error'));
+      addToast('error', e.message || t('common.error'));
     } finally {
       setSaving(false);
     }
@@ -92,11 +121,11 @@ export default function AdminTestcases() {
     if (!window.confirm(t('admin.deleteTestcaseConfirm'))) return;
     try {
       await api.deleteTestcase(selectedTestcaseProblem.id, index);
-      useToastStore().addToast('success', t('admin.testcaseDeleted'));
+      addToast('success', t('admin.testcaseDeleted'));
       const data = await api.getProblemTestcases(selectedTestcaseProblem.id);
       setExistingTestcases(data.testcases);
     } catch (e: any) {
-      useToastStore().addToast('error', e.message || t('common.error'));
+      addToast('error', e.message || t('common.error'));
     }
   };
 
@@ -296,6 +325,10 @@ export default function AdminTestcases() {
               </div>
             ))}
             <div className="form-actions">
+              <label className="btn btn-secondary" style={{ cursor: 'pointer' }}>
+                <Upload size={14} /> 批量导入
+                <input type="file" accept=".json" style={{ display: 'none' }} onChange={handleBatchUpload} />
+              </label>
               <button className="btn btn-secondary" onClick={handleAddTestcaseRow}>
                 <Plus size={14} /> {t('admin.addTestcase')}
               </button>

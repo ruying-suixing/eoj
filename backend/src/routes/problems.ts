@@ -148,11 +148,14 @@ problems.get('/recommend', authMiddleware, async (c) => {
   const attemptedIds = new Set((attemptedRows.results as any[]).map((r) => r.problem_id));
 
   // 5. Query candidate problems: not solved, public, with rating close to user's
-  //    Score each candidate: rating closeness, tag overlap, pass_rate signal (mid-range is better for learning)
+  //    Score each candidate: rating closeness, tag overlap, pass_rate signal
+  //    Use a generous limit (200) to avoid loading all problems into memory
   const candidates = await c.env.DB.prepare(
     `SELECT id, title, slug, tags, difficulty, rating
      FROM problems
-     WHERE is_public = 1`
+     WHERE is_public = 1
+     ORDER BY rating ASC
+     LIMIT 200`
   ).all();
 
   const recommendations: any[] = [];
@@ -392,6 +395,56 @@ problems.get('/:slug', async (c) => {
     success: true,
     data: responseData,
   });
+});
+
+// ── Language distribution for a problem ──
+problems.get('/:slug/languages', async (c) => {
+  const slug = c.req.param('slug');
+  const problem: any = await c.env.DB.prepare('SELECT id FROM problems WHERE slug = ?').bind(slug).first();
+  if (!problem) {
+    return c.json({ success: false, error: { message: 'Problem not found', code: 'NOT_FOUND' } }, 404);
+  }
+  const results = await c.env.DB.prepare(
+    `SELECT language, COUNT(*) as count FROM submissions WHERE problem_id = ? GROUP BY language ORDER BY count DESC`
+  ).bind(problem.id).all();
+  return c.json({ success: true, data: { languages: results.results } });
+});
+
+// ── Related problems endpoint ──
+problems.get('/:slug/related', async (c) => {
+  const slug = c.req.param('slug');
+  const limit = Math.min(10, Math.max(1, parseInt(c.req.query('limit') || '5')));
+
+  const problem: any = await c.env.DB.prepare(
+    'SELECT id, tags FROM problems WHERE slug = ? AND is_public = 1'
+  ).bind(slug).first();
+
+  if (!problem) {
+    return c.json({ success: false, error: { message: 'Problem not found', code: 'NOT_FOUND' } }, 404);
+  }
+
+  let tags: string[] = [];
+  try { tags = JSON.parse(problem.tags || '[]'); } catch { tags = []; }
+
+  if (tags.length === 0) {
+    return c.json({ success: true, data: { problems: [] } });
+  }
+
+  // Find problems with overlapping tags, excluding current problem
+  const related = await c.env.DB.prepare(
+    `SELECT id, title, slug, difficulty, tags,
+            (SELECT COUNT(*) FROM submissions WHERE problem_id = problems.id AND status = 'accepted') as accepted_count
+     FROM problems
+     WHERE is_public = 1 AND id != ? AND (
+       ${tags.map(() => "tags LIKE ?").join(' OR ')}
+     )
+     ORDER BY (
+       ${tags.map(() => "CASE WHEN tags LIKE ? THEN 1 ELSE 0 END").join(' + ')}
+     ) DESC
+     LIMIT ?`
+  ).bind(problem.id, ...tags.map(t => `%"${t}"%`), ...tags.map(() => 1), limit).all();
+
+  return c.json({ success: true, data: { problems: related.results } });
 });
 
 // ── Problem status endpoint (Bug 3 fix) ──

@@ -188,9 +188,7 @@ admin.post('/problems/import', authMiddleware, problemAdminMiddleware, async (c)
         item.judge_type === 'spj' ? (item.spj_language || null) : null,
       ).run();
 
-      if (result.meta.last_row_id) {
-        // keep reference for later use
-      }
+      // result.meta.last_row_id is available for later use if needed
     }
 
     if (Array.isArray(item?.testcases) && item.testcases.length > 0) {
@@ -865,3 +863,25 @@ admin.delete('/messages/conversations/:id', authMiddleware, adminMiddleware, asy
 });
 
 export default admin;
+
+// POST /admin/announcement/send — 发送系统公告给所有用户（admin only）
+admin.post('/announcement/send', authMiddleware, adminMiddleware, async (c) => {
+  const body = await c.req.json();
+  const { title, content, link } = body;
+
+  if (!title || !content) {
+    return c.json({ success: false, error: { message: 'title and content are required', code: 'BAD_REQUEST' } }, 400);
+  }
+
+  const { sendNotification, NotificationType } = await import('../utils/notify');
+
+  // 获取所有用户
+  const users = await c.env.DB.prepare('SELECT id FROM users').all();
+  let sent = 0;
+  for (const row of (users.results as any[])) {
+    await sendNotification(c.env.DB, row.id, NotificationType.SYSTEM, title, content, link || '');
+    sent++;
+  }
+
+  return c.json({ success: true, data: { message: `Announcement sent to ${sent} users`, sent } });
+});
