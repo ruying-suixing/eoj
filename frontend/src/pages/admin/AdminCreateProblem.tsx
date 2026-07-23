@@ -5,12 +5,31 @@ import { useToastStore } from '../../store/toast';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { DIFFICULTIES } from '../../constants';
 import { t } from '../../i18n';
-import { Save } from 'lucide-react';
+import { Save, Code2 } from 'lucide-react';
+import CodeMirror from '@uiw/react-codemirror';
+import { cpp } from '@codemirror/lang-cpp';
+import { python } from '@codemirror/lang-python';
+import { java } from '@codemirror/lang-java';
+import { javascript } from '@codemirror/lang-javascript';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { useThemeStore } from '../../store/theme';
 import '../Admin.css';
+
+const getLangExtension = (lang: string) => {
+  switch (lang) {
+    case 'python': return python();
+    case 'cpp': case 'c': return cpp();
+    case 'java': return java();
+    case 'javascript': return javascript();
+    default: return python();
+  }
+};
 
 export default function AdminCreateProblem() {
   useDocumentTitle(t('admin.createProblem'));
+  const addToast = useToastStore((s) => s.addToast);
   const navigate = useNavigate();
+  const { theme } = useThemeStore();
   const [saving, setSaving] = useState(false);
   const [problemForm, setProblemForm] = useState({
     title: '',
@@ -43,7 +62,7 @@ export default function AdminCreateProblem() {
 
   const handleCreateProblem = async () => {
     if (!problemForm.title || !problemForm.slug || !problemForm.description) {
-      useToastStore().addToast('error', t('admin.titleRequired'));
+      addToast('error', t('admin.titleRequired'));
       return;
     }
     setSaving(true);
@@ -53,10 +72,10 @@ export default function AdminCreateProblem() {
         data.spj_code = spjCode;
       }
       const result = await api.createProblem(data);
-      useToastStore().addToast('success', t('admin.problemCreated'));
+      addToast('success', t('admin.problemCreated'));
       navigate(`/admin/testcases?problemId=${result.id}&problemTitle=${encodeURIComponent(problemForm.title)}&problemSlug=${encodeURIComponent(problemForm.slug)}&problemDifficulty=${problemForm.difficulty}&problemJudgeType=${problemForm.judge_type}`);
     } catch (e: any) {
-      useToastStore().addToast('error', e.message || t('common.error'));
+      addToast('error', e.message || t('common.error'));
     } finally {
       setSaving(false);
     }
@@ -166,14 +185,17 @@ export default function AdminCreateProblem() {
             </select>
           </div>
           <div className="form-group">
-            <label>{t('admin.spjCode')}</label>
-            <textarea
-              rows={15}
-              value={spjCode}
-              onChange={(e) => setSpjCode(e.target.value)}
-              placeholder={t('admin.spjHint')}
-              style={{ fontFamily: 'monospace', fontSize: '13px' }}
-            />
+            <label><Code2 size={16} /> {t('admin.spjCode')}</label>
+            <div className="spj-code-editor" style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+              <CodeMirror
+                value={spjCode}
+                onChange={(val) => setSpjCode(val)}
+                height="300px"
+                theme={theme === 'dark' ? oneDark : undefined}
+                extensions={[getLangExtension(problemForm.spj_language)]}
+                basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: true }}
+              />
+            </div>
             <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
               {t('admin.spjHint')}
             </small>

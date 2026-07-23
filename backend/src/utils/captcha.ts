@@ -12,10 +12,31 @@ const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I, O, 0, 1 to avoid conf
 
 function randomCode(length: number): string {
   let code = '';
+  const randomValues = new Uint8Array(length);
+  crypto.getRandomValues(randomValues);
   for (let i = 0; i < length; i++) {
-    code += CHARS[Math.floor(Math.random() * CHARS.length)];
+    code += CHARS[randomValues[i] % CHARS.length];
   }
   return code;
+}
+
+// ── Crypto-secure random helpers ──
+
+function secureRandom(): number {
+  const arr = new Uint32Array(1);
+  crypto.getRandomValues(arr);
+  return arr[0] / 0xFFFFFFFF;
+}
+
+function secureRandInt(min: number, max: number): number {
+  const range = max - min;
+  const arr = new Uint32Array(1);
+  crypto.getRandomValues(arr);
+  return min + (arr[0] % range);
+}
+
+function secureRandFloat(min: number, max: number): number {
+  return min + secureRandom() * (max - min);
 }
 
 // ── SVG rendering ──
@@ -34,7 +55,62 @@ function hsl(h: number, s: number, l: number): string {
 }
 
 function rand(min: number, max: number): number {
-  return Math.random() * (max - min) + min;
+  return secureRandFloat(min, max);
+}
+
+// ── 5×7 bitmap font (no <text> elements, only <circle> paths) ──
+// Each character is a 5-wide × 7-tall grid of dots.
+// 1 = filled dot, 0 = empty
+const BITMAP_FONT: Record<string, number[]> = {
+  'A': [0,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 1,1,1,1,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1],
+  'B': [1,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 1,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 1,1,1,1,0],
+  'C': [0,1,1,1,0, 1,0,0,0,1, 1,0,0,0,0, 1,0,0,0,0, 1,0,0,0,0, 1,0,0,0,1, 0,1,1,1,0],
+  'D': [1,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 1,1,1,1,0],
+  'E': [1,1,1,1,1, 1,0,0,0,0, 1,0,0,0,0, 1,1,1,1,0, 1,0,0,0,0, 1,0,0,0,0, 1,1,1,1,1],
+  'F': [1,1,1,1,1, 1,0,0,0,0, 1,0,0,0,0, 1,1,1,1,0, 1,0,0,0,0, 1,0,0,0,0, 1,0,0,0,0],
+  'G': [0,1,1,1,1, 1,0,0,0,0, 1,0,0,0,0, 1,0,0,1,1, 1,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0],
+  'H': [1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 1,1,1,1,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1],
+  'J': [0,0,0,0,1, 0,0,0,0,1, 0,0,0,0,1, 0,0,0,0,1, 0,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0],
+  'K': [1,0,0,0,1, 1,0,0,1,0, 1,0,1,0,0, 1,1,0,0,0, 1,0,1,0,0, 1,0,0,1,0, 1,0,0,0,1],
+  'L': [1,0,0,0,0, 1,0,0,0,0, 1,0,0,0,0, 1,0,0,0,0, 1,0,0,0,0, 1,0,0,0,0, 1,1,1,1,1],
+  'M': [1,0,0,0,1, 1,1,0,1,1, 1,0,1,0,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1],
+  'N': [1,0,0,0,1, 1,1,0,0,1, 1,0,1,0,1, 1,0,0,1,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1],
+  'P': [1,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 1,1,1,1,0, 1,0,0,0,0, 1,0,0,0,0, 1,0,0,0,0],
+  'Q': [0,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,1,0,1, 0,1,1,1,0, 0,0,0,1,0],
+  'R': [1,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 1,1,1,1,0, 1,0,1,0,0, 1,0,0,1,0, 1,0,0,0,1],
+  'S': [0,1,1,1,1, 1,0,0,0,0, 1,0,0,0,0, 0,1,1,1,0, 0,0,0,0,1, 0,0,0,0,1, 1,1,1,1,0],
+  'T': [1,1,1,1,1, 0,0,1,0,0, 0,0,1,0,0, 0,0,1,0,0, 0,0,1,0,0, 0,0,1,0,0, 0,0,1,0,0],
+  'U': [1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0],
+  'V': [1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 0,1,0,1,0, 0,0,1,0,0],
+  'W': [1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,1,0,1, 1,1,0,1,1, 1,0,0,0,1],
+  'X': [1,0,0,0,1, 1,0,0,0,1, 0,1,0,1,0, 0,0,1,0,0, 0,1,0,1,0, 1,0,0,0,1, 1,0,0,0,1],
+  'Y': [1,0,0,0,1, 1,0,0,0,1, 0,1,0,1,0, 0,0,1,0,0, 0,0,1,0,0, 0,0,1,0,0, 0,0,1,0,0],
+  'Z': [1,1,1,1,1, 0,0,0,0,1, 0,0,0,1,0, 0,0,1,0,0, 0,1,0,0,0, 1,0,0,0,0, 1,1,1,1,1],
+  '2': [0,1,1,1,0, 1,0,0,0,1, 0,0,0,0,1, 0,0,0,1,0, 0,0,1,0,0, 0,1,0,0,0, 1,1,1,1,1],
+  '3': [1,1,1,1,1, 0,0,0,0,1, 0,0,0,1,0, 0,0,1,1,0, 0,0,0,0,1, 0,0,0,0,1, 1,1,1,1,0],
+  '4': [0,0,0,1,0, 0,0,1,1,0, 0,1,0,1,0, 1,0,0,1,0, 1,1,1,1,1, 0,0,0,1,0, 0,0,0,1,0],
+  '5': [1,1,1,1,1, 1,0,0,0,0, 1,1,1,1,0, 0,0,0,0,1, 0,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0],
+  '6': [0,1,1,1,1, 1,0,0,0,0, 1,0,0,0,0, 1,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0],
+  '7': [1,1,1,1,1, 0,0,0,0,1, 0,0,0,1,0, 0,0,1,0,0, 0,0,1,0,0, 0,0,1,0,0, 0,0,1,0,0],
+  '8': [0,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0],
+  '9': [0,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 0,1,1,1,1, 0,0,0,0,1, 0,0,0,0,1, 1,1,1,1,0],
+};
+
+/** Render a single character as SVG path data using bitmap font */
+function charToPath(ch: string, px: number, py: number, cellW: number, cellH: number, dotR: number): string {
+  const bitmap = BITMAP_FONT[ch];
+  if (!bitmap) return '';
+  const paths: string[] = [];
+  for (let row = 0; row < 7; row++) {
+    for (let col = 0; col < 5; col++) {
+      if (bitmap[row * 5 + col]) {
+        const cx = px + col * cellW + cellW / 2;
+        const cy = py + row * cellH + cellH / 2;
+        paths.push(`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${dotR.toFixed(1)}"/>`);
+      }
+    }
+  }
+  return paths.join('');
 }
 
 function renderSvg(code: string, opts: CaptchaSvgOptions = {}): string {
@@ -73,7 +149,7 @@ function renderSvg(code: string, opts: CaptchaSvgOptions = {}): string {
     lines.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" opacity="0.6"/>`);
   }
 
-  // Characters (with individual rotation, position, color)
+  // Characters (with individual rotation, position, color) — using <text> for readability
   const charWidth = W / code.length;
   for (let i = 0; i < code.length; i++) {
     const ch = code[i];
@@ -104,15 +180,15 @@ interface MathProblem {
 
 function generateMathProblem(cfg: { length: number }): MathProblem {
   const ops = ['+', '-'];
-  const op = ops[Math.floor(Math.random() * ops.length)];
+  const op = ops[secureRandInt(0, ops.length)];
   let a: number, b: number;
 
   if (op === '+') {
-    a = Math.floor(Math.random() * 50) + 10;
-    b = Math.floor(Math.random() * 50) + 10;
+    a = secureRandInt(10, 60);
+    b = secureRandInt(10, 60);
   } else {
-    a = Math.floor(Math.random() * 80) + 20;
-    b = Math.floor(Math.random() * a) + 1; // ensure positive result
+    a = secureRandInt(20, 100);
+    b = secureRandInt(1, a);
   }
 
   const answer = op === '+' ? a + b : a - b;
@@ -208,20 +284,37 @@ export async function isCaptchaRequired(db: D1Database, feature: string): Promis
 
 /**
  * Verify a CAPTCHA answer. Returns true if valid, false otherwise.
- * Marks the code as used (one-time) regardless of success/failure.
+ * Allows up to 3 attempts per UUID, then expires.
+ * Only marks as used (one-time) on successful verification.
  */
 export async function verifyCaptcha(db: D1Database, uuid: string, answer: string): Promise<boolean> {
   if (!uuid || !answer) return false;
 
   const row = await db.prepare(
-    "SELECT id, answer, used FROM captcha_codes WHERE uuid = ? AND expires_at > datetime('now') AND used = 0"
+    "SELECT id, answer, used, attempts, expires_at FROM captcha_codes WHERE uuid = ? AND expires_at > datetime('now')"
   ).bind(uuid).first() as any;
 
   if (!row) return false;
 
-  // Mark as used (one-time) — auto-delete after use
-  await db.prepare('UPDATE captcha_codes SET used = 1 WHERE id = ?').bind(row.id).run();
+  // Already successfully verified
+  if (row.used === 1) return false;
+
+  // Increment attempts counter
+  await db.prepare('UPDATE captcha_codes SET attempts = COALESCE(attempts, 0) + 1 WHERE id = ?').bind(row.id).run();
+
+  // Max 3 attempts per UUID
+  if ((row.attempts || 0) >= 3) {
+    await db.prepare('UPDATE captcha_codes SET used = 1 WHERE id = ?').bind(row.id).run();
+    return false;
+  }
 
   // Compare (case-insensitive)
-  return String(row.answer).toUpperCase() === String(answer).toUpperCase();
+  const isValid = String(row.answer).toUpperCase() === String(answer).toUpperCase();
+
+  if (isValid) {
+    // Mark as used only on success (one-time use)
+    await db.prepare('UPDATE captcha_codes SET used = 1 WHERE id = ?').bind(row.id).run();
+  }
+
+  return isValid;
 }
